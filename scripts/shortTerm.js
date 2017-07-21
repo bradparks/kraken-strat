@@ -1,59 +1,51 @@
 const kraken = require("../config/secret").krakenRay;
 const candle = require("../candle");
 const List = require("immutable").List;
-const Map = require("immutable").Map;
-const PAIRS = Map({
-    "ETHEUR": "XETHZEUR",
-    "LTCEUR": "XLTCZEUR"
-});
 
 module.exports = {
     run() {
-        this.getPersonalBalance();
+        this.getPersonalBalance(kraken);
     },
 
-    getPersonalBalance() {
+    getPersonalBalance(client) {
         console.log("Getting Balance");
-        return kraken.api('Balance', null, (error, data) => {
+        return client.api('Balance', null, (error, data) => {
             if (error) {
                 console.error("Error while getting Balance", error);
                 this.getPersonalBalance();
             }
             if (data) {
-                // const results = data.result;
-                // if (results && results.open) {
-                //     Object.keys(results.open).map(function (txid, index) {
-                //         console.log(txid, results.open[txid]["descr"]);
-                //         const descr = results.open[txid]["descr"];
-                //         const openPair = descr["pair"];
-                //         const type = descr["type"];
-                //
-                //         PAIRS.forEach((OHLCPair, pair) => {
-                //             if(openPair == pair) {
-                //                 this.getPairData(pair, type);
-                //             }
-                //         });
-                //     });
-                // }
+                console.log(data);
+                const results = data.result;
+                if (results) {
+                    Object.keys(results).map(function (currencyId, index) {
+                        if(!(["ZEUR", "ZUSD", "KFEE"].indexOf(currencyId) > -1)) {
+                            if(results[currencyId].substring(0, 2) !== "0.") { //en position
+                                console.log(currencyId, "en position");
+                                this.getPairData(currencyId + "XEUR")
+                            } else { //pas en position
+                                console.log(currencyId, "pas en position");
+                            }
+                        }
+                    });
+                }
             }
         });
     },
 
-    getPairData(pair, type) {
+    getPairData(pair) {
         kraken.api('OHLC', {"pair": pair, "interval": 240}, function (error, data) {
             if (error) {
                 console.log(error);
                 this.getPairData(pair);
             }
-            else {
+            if(data) {
                 const result = data.result;
                 const out = this.getLastCandle(result, PAIRS[pair]);
-                // const isGreenOrRed =
-                if(type == "sell") {
-                    console.log(type, out);
-                } else {
-                    console.log(type, out);
-                }
+                console.log(out);
+            }
+            else {
+                console.log(pair, "not found")
             }
         });
     },
