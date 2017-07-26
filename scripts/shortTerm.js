@@ -2,50 +2,74 @@ const kraken = require("../config/secret").krakenRay;
 const candle = require("../candle");
 const List = require("immutable").List;
 
+const Promise = require('bluebird');
+const async = require('asyncawait/async');
+const await = require('asyncawait/await');
+
 module.exports = {
     run() {
-        this.getPersonalBalance(kraken);
+        const self = this;
+        const asyncFunc = async(() => {
+            const balance = await(new Promise((resolve, reject) => {
+                    self.getPersonalBalance(kraken, resolve, reject)
+                })
+            );
+            if (balance) {
+                console.log(balance);
+                Object.keys(balance).map(function (currencyId, index) {
+                    if (!(["ZEUR", "ZUSD", "KFEE"].indexOf(currencyId) > -1)) {
+                        const pair = currencyId + "ZEUR";
+                        const pairData = await(new Promise((resolve, reject) => {
+                            self.getPairData(kraken, pair, resolve, reject)
+                        }));
+
+                        if (pairData) {
+                            return self.getLastCandle(pairData, pair);
+                        }
+                    }
+                });
+            }
+        });
+
+        asyncFunc()
+            .then((d) => {
+                console.log(d);
+            })
+            .catch((e) => {
+                console.log(e);
+            })
     },
 
-    getPersonalBalance(client) {
+    getPersonalBalance(client, resolve, reject) {
+        const self = this;
         console.log("Getting Balance");
         return client.api('Balance', null, (error, data) => {
             if (error) {
                 console.error("Error while getting Balance", error);
-                this.getPersonalBalance();
+                self.getPersonalBalance(client, resolve, reject);
             }
             if (data) {
-                console.log(data);
                 const results = data.result;
                 if (results) {
-                    Object.keys(results).map(function (currencyId, index) {
-                        if(!(["ZEUR", "ZUSD", "KFEE"].indexOf(currencyId) > -1)) {
-                            if(results[currencyId].substring(0, 2) !== "0.") { //en position
-                                console.log(currencyId, "en position");
-                                this.getPairData(currencyId + "XEUR")
-                            } else { //pas en position
-                                console.log(currencyId, "pas en position");
-                            }
-                        }
-                    });
+                    resolve(results);
                 }
             }
         });
     },
 
-    getPairData(pair) {
-        kraken.api('OHLC', {"pair": pair, "interval": 240}, function (error, data) {
+    getPairData(client, pair, resolve, reject) {
+        const self = this;
+        console.log("Getting pair", pair);
+        return client.api('OHLC', {"pair": pair, "interval": 240}, function (error, data) {
             if (error) {
-                console.log(error);
-                this.getPairData(pair);
+                console.log("Error while getting pair data for", pair, error);
+                self.getPairData(client, pair, resolve, reject);
             }
-            if(data) {
+            if (data) {
                 const result = data.result;
-                const out = this.getLastCandle(result, PAIRS[pair]);
-                console.log(out);
-            }
-            else {
-                console.log(pair, "not found")
+                if (result) {
+                    resolve(result);
+                }
             }
         });
     },
