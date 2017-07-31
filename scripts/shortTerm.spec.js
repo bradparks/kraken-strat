@@ -18,3 +18,11 @@ describe('getLastCandle', function () {
         expect(result.get("count")).to.eql(19);
     })
 });
+
+describe('getHighestAndLowestOfPeriod', function () {
+    it('retrieves 6 laat candles highest and lowest', function () {
+        const result = shortTermScript.getHighestAndLowestOfPeriod(fixture, "XETHZEUR", 6);
+        expect(result.get("highest")).to.eql("216.89999");
+        expect(result.get("lowest")).to.eql("216.00019");
+    })
+});
