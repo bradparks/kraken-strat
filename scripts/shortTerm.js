@@ -9,10 +9,12 @@ const _await = require('asyncawait/await');
 
 const CANDLE_PERIOD = 240;
 const PERIOD_BUY_SELL = 6; //Last 6 candles not the last one included
-const INITIAL_CAPITAL = 100;
+const INITIAL_CAPITAL = 10;
 const MARGIN = 0.005;
-const UNUSED_CURRENCY = ["ZEUR", "ZUSD", "KFEE", "XXRP", "XXLM"];
-const USED_CURRENCY = ["XXBT", "XXRP", "XLTC", "XXLM", "XETH", "XREP", "XZEC", "XXMR", "DASH", "GNO", "XETC", "EOS"];
+// const UNUSED_CURRENCY = ["ZEUR", "ZUSD", "KFEE", "XXRP", "XXLM"];
+// const USED_CURRENCY = ["XXBT", "XXRP", "XLTC", "XXLM", "XETH", "XREP", "XZEC", "XXMR", "DASH", "GNO", "XETC", "EOS"];
+const UNUSED_CURRENCY = ["ZEUR", "ZUSD", "KFEE", "XXRP", "XXLM", "XXBT", "XETH", "XXMR"];
+const USED_CURRENCY = ["XLTC", "XREP", "XZEC", "DASH", "GNO", "XETC", "EOS"];
 const NO_X_CURRENCY = ["DASH", "GNO", "EOS"];
 
 module.exports = {
@@ -25,8 +27,6 @@ module.exports = {
             const openOrders = _await(new Promise((resolve, reject) => {
                 self.getOpenOrders(kraken, resolve, reject)
             }));
-
-            return [balance, openOrders];
 
             if (balance) {
                 console.log(balance);
@@ -55,10 +55,11 @@ module.exports = {
 
                             const redOrGreen = lastCandle.get("open") > lastCandle.get("close") ? "RED" : "GREEN";
 
-                            if (balance.hasOwnProperty(currencyId) && balance[currencyId].substring(0, 2) == "0.") {
+                            if (balance.hasOwnProperty(currencyId) && balance[currencyId].substring(0, 2) == "0." || !balance.hasOwnProperty(currencyId)) {
                                 if (redOrGreen == "RED") {
                                     // console.log("RED", pair, lastCandle, highest, lowest);
-                                    if (openOrderIdForPair) {
+                                    console.log("C'est rouge et je ne suis pas en position, je descend le SL BUY");
+                                    if (openOrderIdForPair !== "") {
                                         // Delete old order SL BUY
                                         const openOrder = _await(new Promise((resolve, reject) => {
                                             self.cancelOrder(kraken, openOrderIdForPair, resolve, reject);
@@ -79,8 +80,8 @@ module.exports = {
                                     }));
 
                                     if (addedOrder) {
-                                        // console.log("OK for " + orderPair + ", order added BUY " + addedOrder.txid);
-                                        return Promise.resolve("OK for " + orderPair + ", order added BUY " + addedOrder.txid);
+                                        console.log(addedOrder);
+                                        console.log("OK for " + orderPair + ", order added BUY " + addedOrder["txid"][0]);
                                     }
                                 }
                                 else {
@@ -88,10 +89,13 @@ module.exports = {
                                 }
                             }
                             else {
-                                console.log("En position sur", pair);
+                                const volume = balance[currencyId];
+                                console.log("En position sur" + pair + " avec un volume de " + volume);
+
                                 if (redOrGreen == "GREEN") {
                                     // console.log("GREEN", pair, lastCandle, highest, lowest);
-                                    if (openOrderIdForPair) {
+                                    console.log("C'est vert et je suis en position, je monte le SL SELL");
+                                    if (openOrderIdForPair !== "") {
                                         // Delete old order SL SELL
                                         const openOrder = _await(new Promise((resolve, reject) => {
                                             self.cancelOrder(kraken, openOrderIdForPair, resolve, reject);
@@ -103,7 +107,6 @@ module.exports = {
                                     }
 
                                     const price = lowest * (1 - MARGIN);
-                                    const volume = (INITIAL_CAPITAL / price).toString();
 
                                     // New order SL SELL
 
@@ -112,8 +115,8 @@ module.exports = {
                                     }));
 
                                     if (addedOrder) {
-                                        // console.log("OK for " + orderPair + ", order added SELL " + addedOrder.txid);
-                                        return Promise.resolve("OK for " + orderPair + ", order added SELL " + addedOrder.txid);
+                                        console.log(addedOrder);
+                                        console.log("OK for " + orderPair + ", order added SELL " + addedOrder["txid"][0]);
                                     }
                                 }
                                 else {
@@ -123,6 +126,8 @@ module.exports = {
                         }
                     }
                 });
+
+                return Promise.resolve("OK");
             }
         });
 
@@ -178,11 +183,12 @@ module.exports = {
             "volume": volume
         }, function (error, data) {
             if (error) {
-                console.log("Error while cancelling last order", error);
+                console.log("Error while addind order for ", pair, type, price1, price2, volume);
+                console.log(error);
                 self.addOrder(client, pair, type, price1, price2, volume, resolve, reject);
             }
             if (data) {
-                resolve("OK");
+                resolve(data.result);
             }
         });
     },
