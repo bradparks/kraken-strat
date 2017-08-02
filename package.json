@@ -1,7 +1,7 @@
 {
-  "name": "node-js-getting-started",
-  "version": "0.2.6",
-  "description": "A sample Node.js app using Express 4",
+  "name": "kraken-strat",
+  "version": "0.0.1",
+  "description": "kraken",
   "engines": {
     "node": "6.10.2"
   },
@@ -12,24 +12,24 @@
     "watch:script": "watchify -t babelify index.js --debug --verbose --outfile web/js/app.bundle.js"
   },
   "dependencies": {
+    "asyncawait": "^1.0.6",
     "ejs": "2.5.6",
     "express": "4.15.2",
     "immutable": "^3.8.1",
     "isomorphic-fetch": "^2.2.1",
-    "jsdom": "^11.1.0",
-    "kraken-api": "git+https://github.com/nothingisdead/npm-kraken-api.git",
+    "kraken-api": "git+https://github.com/nothingisdead/npm-kraken-api.git#371d90a",
+    "log4js": "^2.3.2",
+    "node-schedule": "^1.2.3",
     "promise": "^8.0.0",
     "request": "2.81.0",
     "request-promise": "^4.2.1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/heroku/node-js-getting-started"
+    "url": "https://github.com/rtehok/kraken-strat"
   },
   "keywords": [
-    "node",
-    "heroku",
-    "express"
+    "node"
   ],
   "license": "MIT",
   "devDependencies": {
