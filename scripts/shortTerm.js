@@ -1,4 +1,3 @@
-const kraken = require("../config/secret").krakenRay;
 const candle = require("../candle");
 const List = require("immutable").List;
 const Map = require("immutable").Map;
@@ -20,15 +19,14 @@ const INITIAL_CAPITAL = 10;
 const MARGIN = 0.005;
 
 const TIMEOUT = 45000;
-const NB_RETRIES = 5;
 // const UNUSED_CURRENCY = ["ZEUR", "ZUSD", "KFEE", "XXRP", "XXLM"];
 // const USED_CURRENCY = ["XXBT", "XXRP", "XLTC", "XXLM", "XETH", "XREP", "XZEC", "XXMR", "DASH", "GNO", "XETC", "EOS"];
-const UNUSED_CURRENCY = ["ZEUR", "ZUSD", "KFEE", "XXRP", "XXLM", "XXBT", "XETH", "XXMR"];
-const USED_CURRENCY = ["XLTC", "XREP", "XZEC", "DASH", "GNO", "XETC", "EOS"];
+const UNUSED_CURRENCY = ["ZEUR", "ZUSD", "KFEE", "XXRP", "XXLM", "XETH", "XXMR"];
+const USED_CURRENCY = ["XXBT", "XLTC", "XREP", "XZEC", "DASH", "GNO", "XETC", "EOS"];
 const NO_X_CURRENCY = ["DASH", "GNO", "EOS"];
 
 module.exports = {
-    run() {
+    run(kraken) {
         const self = this;
         const asyncFunc = _async(() => {
             const balance = _await(new Promise((resolve, reject) => {
