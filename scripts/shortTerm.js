@@ -69,59 +69,15 @@ module.exports = {
                                     logger.info("Dernière bougie rouge et je ne suis pas en position, je descend le SL BUY");
                                     if (openOrderIdsForPair.length) {
                                         // Delete old orders SL BUY
-                                        openOrderIdsForPair.forEach(id => {
-                                            const cancelOrder = _await(new Promise((resolve, reject) => {
-                                                setTimeout(() => {
-                                                    self.cancelOrder(kraken, id, resolve, reject, 0);
-                                                }, TIMEOUT);
-                                            }));
-
-                                            if (cancelOrder == "OK") {
-                                                logger.info(id, "has been cancelled");
-                                            } else {
-                                                logger.warn(id, "has probably been cancelled");
-                                            }
-                                        });
+                                        logger.info("Orders to be cancelled", openOrderIdsForPair);
+                                        self.cancelOrders(openOrderIdsForPair, orderPair);
                                     }
 
                                     const price = highest * (1 + MARGIN);
                                     const volume = (INITIAL_CAPITAL / price).toString();
 
                                     // New order SL BUY
-                                    const addedOrder = _await(new Promise((resolve, reject) => {
-                                        setTimeout(() => {
-                                            self.addOrder(kraken, orderPair, "buy", price, price, volume, resolve, reject);
-                                        }, TIMEOUT);
-                                    }));
-
-                                    if (addedOrder == "MAYBE") {
-                                        let check = true;
-                                        while (check) {
-                                            const orders = _await(new Promise((resolve, reject) => {
-                                                self.getOpenOrders(kraken, resolve, reject)
-                                            }));
-
-                                            for (let orderId in orders) {
-                                                if (orders.hasOwnProperty(orderId) && orders[orderId]["descr"]["pair"] == orderPair) {
-                                                    check = false;
-                                                }
-                                            }
-                                            if (check) {
-                                                const addedOrder = _await(new Promise((resolve, reject) => {
-                                                    setTimeout(() => {
-                                                        self.addOrder(kraken, orderPair, "buy", price, price, volume, resolve, reject);
-                                                    }, TIMEOUT);
-                                                }));
-
-                                                if (addedOrder !== "MAYBE") {
-                                                    check = true;
-                                                    logger.info("OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        logger.info("OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
-                                    }
+                                    self.addOrders(orderPair, price, volume, "buy");
                                 }
                                 else {
                                     logger.info("Pas en position sur " + pair + " et bougie verte, I'm out");
@@ -135,59 +91,14 @@ module.exports = {
                                     logger.info("Dernière bougie verte et je suis en position, je monte le SL SELL");
                                     if (openOrderIdsForPair.length) {
                                         // Delete old order SL BUY
-                                        openOrderIdsForPair.forEach(id => {
-                                            const cancelledOrder = _await(new Promise((resolve, reject) => {
-                                                setTimeout(() => {
-                                                    self.cancelOrder(kraken, id, resolve, reject, 0);
-                                                }, TIMEOUT);
-                                            }));
-
-                                            if (cancelledOrder == "OK") {
-                                                logger.info(id, "has been cancelled");
-                                            } else {
-                                                logger.warn(id, "has probably been cancelled");
-                                            }
-                                        });
-
+                                        logger.info("Orders to be cancelled", openOrderIdsForPair);
+                                        self.cancelOrders(openOrderIdsForPair, self, orderPair);
                                     }
 
                                     const price = lowest * (1 - MARGIN);
 
                                     // New order SL SELL
-                                    const addedOrder = _await(new Promise((resolve, reject) => {
-                                        setTimeout(() => {
-                                            self.addOrder(kraken, orderPair, "sell", price, price, volume, resolve, reject);
-                                        }, TIMEOUT);
-                                    }));
-
-                                    if (addedOrder == "MAYBE") {
-                                        let check = true;
-                                        while (check) {
-                                            const orders = _await(new Promise((resolve, reject) => {
-                                                self.getOpenOrders(kraken, resolve, reject)
-                                            }));
-
-                                            for (let orderId in orders) {
-                                                if (orders.hasOwnProperty(orderId) && orders[orderId]["descr"]["pair"] == orderPair) {
-                                                    check = false;
-                                                }
-                                            }
-                                            if (check) {
-                                                const addedOrder = _await(new Promise((resolve, reject) => {
-                                                    setTimeout(() => {
-                                                        self.addOrder(kraken, orderPair, "sell", price, price, volume, resolve, reject);
-                                                    }, TIMEOUT);
-                                                }));
-
-                                                if (addedOrder !== "MAYBE") {
-                                                    check = true;
-                                                    logger.info("OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        logger.info("OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
-                                    }
+                                    self.addOrders(orderPair, price, volume, "sell");
                                 }
                                 else {
                                     logger.info("En position sur " + pair + " et bougie rouge, I'm out");
@@ -210,13 +121,102 @@ module.exports = {
             })
     },
 
+    cancelOrders(openOrderIdsForPair, orderPair) {
+        const self = this;
+        openOrderIdsForPair.forEach(id => {
+            const cancelledOrder = _await(new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    self.APICancelOrder(kraken, id, resolve, reject);
+                }, TIMEOUT);
+            }));
+
+            if (cancelledOrder == "CANCELLED") {
+                logger.info(id, "has been cancelled for", orderPair);
+            } else {
+                logger.warn(id, "has failed to cancel, retrying");
+                let check = true;
+                while (check) {
+                    logger.info("Getting open orders again");
+                    const orders = _await(new Promise((resolve, reject) => {
+                        setTimeout(() => {
+                            self.getOpenOrders(kraken, resolve, reject)
+                        }, TIMEOUT);
+                    }));
+
+                    if (orders.hasOwnProperty(id)) {
+                        logger.info("Retry cancelling again", id);
+                        const cancelOrder = _await(new Promise((resolve, reject) => {
+                            setTimeout(() => {
+                                self.APICancelOrder(kraken, id, resolve, reject);
+                            }, TIMEOUT);
+                        }));
+
+                        if (cancelOrder == "CANCELLED") {
+                            check = false;
+                            logger.info(id, "has been cancelled for", orderPair);
+                        }
+                    } else {
+                        check = false;
+                        logger.info(id, "has already been cancelled for", orderPair);
+                    }
+                }
+            }
+        });
+    },
+
+    addOrders(orderPair, price, volume, type) {
+        const self = this;
+        const addedOrder = _await(new Promise((resolve, reject) => {
+            setTimeout(() => {
+                self.APIAddOrder(kraken, orderPair, type, price, price, volume, resolve, reject);
+            }, TIMEOUT);
+        }));
+
+        if (addedOrder == "MAYBE") {
+            let check = true;
+            while (check) {
+                logger.info("Getting open orders again");
+                const orders = _await(new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        self.getOpenOrders(kraken, resolve, reject)
+                    }, TIMEOUT);
+                }));
+
+                for (let orderId in orders) {
+                    if (orders.hasOwnProperty(orderId) && orders[orderId]["descr"]["pair"] == orderPair) {
+                        check = false;
+                        logger.info("Already exists", orders[orderId]["descr"]["order"], orderId);
+                    }
+                }
+
+                if (check) {
+                    const addedOrder = _await(new Promise((resolve, reject) => {
+                        setTimeout(() => {
+                            self.APIAddOrder(kraken, orderPair, type, price, price, volume, resolve, reject);
+                        }, TIMEOUT);
+                    }));
+
+                    if (addedOrder !== "MAYBE") {
+                        check = false;
+                        logger.info("OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
+                    }
+                }
+            }
+        } else {
+            logger.info("OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
+        }
+    },
+
     getPersonalBalance(client, resolve, reject) {
         const self = this;
         logger.info("Getting Balance");
         return client.api('Balance', null, (error, data) => {
             if (error) {
-                logger.error("Error while getting Balance", error);
-                self.getPersonalBalance(client, resolve, reject);
+                logger.error("Error while getting Balance");
+                logger.error(error.toString());
+                setTimeout(() => {
+                    self.getPersonalBalance(client, resolve, reject);
+                }, TIMEOUT);
             }
             if (data) {
                 const results = data.result;
@@ -228,31 +228,22 @@ module.exports = {
         });
     },
 
-    cancelOrder(client, txId, resolve, reject, cnt) {
-        const self = this;
+    APICancelOrder(client, txId, resolve, reject) {
         logger.info("Cancelling order", txId);
         return client.api('CancelOrder', {"txid": txId}, function (error, data) {
             if (error) {
                 logger.error("Error while cancelling order", txId);
                 logger.error(error.toString());
-                if (!(error.toString().includes("Unknown order:")) && cnt <= NB_RETRIES) {
-                    setTimeout(() => {
-                        logger.info("Trying to rerun cancellation of", txId, "retry #", cnt);
-                        self.cancelOrder(client, txId, resolve, reject, cnt + 1);
-                    }, TIMEOUT);
-                } else {
-                    resolve("PROBABLY");
-                }
+                resolve("KO");
             }
             if (data) {
                 logger.info("Order " + txId + " cancelled");
-                resolve("OK");
+                resolve("CANCELLED");
             }
         });
     },
 
-    addOrder(client, pair, type, price1, price2, volume, resolve, reject) {
-        const self = this;
+    APIAddOrder(client, pair, type, price1, price2, volume, resolve, reject) {
         logger.info("Adding order");
         return client.api('AddOrder', {
             "pair": pair,
@@ -265,14 +256,7 @@ module.exports = {
             if (error) {
                 logger.error("Error while adding order for", pair, type, price1, price2, volume);
                 logger.error(error.toString());
-                if (!(error.toString().includes("ESOCKETTIMEDOUT"))) {
-                    setTimeout(() => {
-                        logger.info("Trying to re-add order for ", pair, type, price1, price2, volume);
-                        self.addOrder(client, pair, type, price1, price2, volume, resolve, reject);
-                    }, TIMEOUT);
-                } else {
-                    resolve("MAYBE");
-                }
+                resolve("MAYBE");
             }
             if (data) {
                 resolve(data.result);
@@ -285,32 +269,43 @@ module.exports = {
         logger.info("Getting pair", pair);
         return client.api('OHLC', {"pair": pair, "interval": CANDLE_PERIOD}, function (error, data) {
             if (error) {
+                logger.error("Error while getting pair data for", pair);
+                logger.error(error.toString());
                 setTimeout(() => {
-                    logger.error("Error while getting pair data for", pair, error);
                     self.getPairData(client, pair, resolve, reject);
                 }, TIMEOUT);
             }
             if (data) {
                 const result = data.result;
                 if (result) {
+                    logger.info("Got pair data for", pair);
                     resolve(result);
                 }
             }
         });
     },
 
+    /**
+     * Retrieve open orders from API
+     * @param client
+     * @param resolve
+     * @param reject
+     * @returns data for open orders: Object with txid as keys
+     */
     getOpenOrders(client, resolve, reject) {
         const self = this;
         logger.info("Getting Open Orders");
         return client.api('OpenOrders', null, function (error, data) {
             if (error) {
+                logger.error("Error while getting open orders");
+                logger.error(error.toString());
                 setTimeout(() => {
-                    logger.error("Error while getting open orders", error);
                     self.getOpenOrders(client, resolve, reject);
                 }, TIMEOUT);
             }
             if (data) {
-                logger.info(data["result"]["open"]);
+                // logger.info(data["result"]["open"]);
+                logger.info("Got open orders");
                 resolve(data["result"]["open"]);
             }
         });
