@@ -8,8 +8,19 @@ const _await = require('asyncawait/await');
 
 const log4js = require('log4js');
 log4js.configure({
-    appenders: {kraken: {type: 'file', filename: 'kraken.log'}},
-    categories: {default: {appenders: ['kraken'], level: 'ALL'}}
+    appenders: {
+        kraken: {
+            type: 'dateFile',
+            filename: "./logs/kraken.log",
+            pattern: '.yyyy-MM-dd'
+        }
+    },
+    categories: {
+        default: {
+            appenders: ["kraken"],
+            level: 'ALL'
+        }
+    }
 });
 const logger = log4js.getLogger('kraken');
 
@@ -25,14 +36,14 @@ const USED_CURRENCY = ["XXBT", "XLTC", "XREP", "XZEC", "DASH", "GNO", "XETC", "E
 const NO_X_CURRENCY = ["DASH", "GNO", "EOS"];
 
 module.exports = {
-    run(kraken, INITIAL_CAPITAL) {
+    run(kraken, INITIAL_CAPITAL, user) {
         const self = this;
         const asyncFunc = _async(() => {
             const balance = _await(new Promise((resolve, reject) => {
-                self.getPersonalBalance(kraken, resolve, reject)
+                self.getPersonalBalance(kraken, user, resolve, reject)
             }));
             const openOrders = _await(new Promise((resolve, reject) => {
-                self.getOpenOrders(kraken, resolve, reject)
+                self.getOpenOrders(kraken, user, resolve, reject)
             }));
 
             if (balance) {
@@ -41,7 +52,7 @@ module.exports = {
                         const pair = NO_X_CURRENCY.indexOf(currencyId) > -1 ? currencyId + "EUR" : currencyId + "ZEUR";
                         const orderPair = NO_X_CURRENCY.indexOf(currencyId) > -1 ? currencyId + "EUR" : currencyId.slice(1) + "EUR";
                         const pairData = _await(new Promise((resolve, reject) => {
-                            self.getPairData(kraken, pair, resolve, reject)
+                            self.getPairData(kraken, user, pair, resolve, reject)
                         }));
 
                         if (pairData) {
@@ -63,40 +74,40 @@ module.exports = {
 
                             if (balance.hasOwnProperty(currencyId) && balance[currencyId] == "0.0000000000" || !balance.hasOwnProperty(currencyId)) {
                                 if (redOrGreen == "RED") {
-                                    logger.info("Dernière bougie rouge et je ne suis pas en position, je descend le SL BUY");
+                                    logger.info(user, "Dernière bougie rouge et je ne suis pas en position, je descend le SL BUY");
                                     if (openOrderIdsForPair.length) {
                                         // Delete old orders SL BUY
-                                        self.cancelOrders(kraken, openOrderIdsForPair, orderPair);
+                                        self.cancelOrders(kraken, user, openOrderIdsForPair, orderPair);
                                     }
 
                                     const price = highest * (1 + MARGIN);
                                     const volume = (INITIAL_CAPITAL / price).toString();
 
                                     // New order SL BUY
-                                    self.addOrders(kraken, orderPair, price, volume, "buy");
+                                    self.addOrders(kraken, user, orderPair, price, volume, "buy");
                                 }
                                 else {
-                                    logger.info("Pas en position sur " + pair + " et bougie verte, I'm out");
+                                    logger.info(user, "Pas en position sur " + pair + " et bougie verte, I'm out");
                                 }
                             }
                             else {
                                 const volume = balance[currencyId];
-                                logger.info("En position sur " + pair + " avec un volume de " + volume);
+                                logger.info(user, "En position sur " + pair + " avec un volume de " + volume);
 
                                 if (redOrGreen == "GREEN") {
-                                    logger.info("Dernière bougie verte et je suis en position, je monte le SL SELL");
+                                    logger.info(user, "Dernière bougie verte et je suis en position, je monte le SL SELL");
                                     if (openOrderIdsForPair.length) {
                                         // Delete old order SL SELL
-                                        self.cancelOrders(kraken, openOrderIdsForPair, orderPair);
+                                        self.cancelOrders(kraken, user, openOrderIdsForPair, orderPair);
                                     }
 
                                     const price = lowest * (1 - MARGIN);
 
                                     // New order SL SELL
-                                    self.addOrders(kraken, orderPair, price, volume, "sell");
+                                    self.addOrders(kraken, user, orderPair, price, volume, "sell");
                                 }
                                 else {
-                                    logger.info("En position sur " + pair + " et bougie rouge, I'm out");
+                                    logger.info(user, "En position sur " + pair + " et bougie rouge, I'm out");
                                 }
                             }
                         }
@@ -109,143 +120,143 @@ module.exports = {
 
         asyncFunc()
             .then((d) => {
-                logger.info("Done", d);
+                logger.info(user, "Done", d);
             })
             .catch((e) => {
-                logger.error(e);
+                logger.error(user, e);
             })
     },
 
-    cancelOrders(client, openOrderIdsForPair, orderPair) {
+    cancelOrders(client, user, openOrderIdsForPair, orderPair) {
         const self = this;
-        logger.info("Orders to be cancelled", openOrderIdsForPair);
+        logger.info(user, "Orders to be cancelled", openOrderIdsForPair);
 
         openOrderIdsForPair.forEach(id => {
             const cancelledOrder = _await(new Promise((resolve, reject) => {
                 setTimeout(() => {
-                    self.APICancelOrder(client, id, resolve, reject);
+                    self.APICancelOrder(client, user, id, resolve, reject);
                 }, TIMEOUT);
             }));
 
             if (cancelledOrder == "CANCELLED") {
-                logger.info(id, "has been cancelled for", orderPair);
+                logger.info(user, id, "has been cancelled for", orderPair);
             } else {
-                logger.warn(id, "has failed to cancel, retrying");
+                logger.warn(user, id, "has failed to cancel, retrying");
                 let check = true;
                 while (check) {
-                    logger.info("Getting open orders again");
+                    logger.info(user, "Getting open orders again");
                     const orders = _await(new Promise((resolve, reject) => {
                         setTimeout(() => {
-                            self.getOpenOrders(client, resolve, reject)
+                            self.getOpenOrders(client, user, resolve, reject)
                         }, TIMEOUT);
                     }));
 
                     if (orders.hasOwnProperty(id)) {
-                        logger.info("Retry cancelling again", id);
+                        logger.info(user, "Retry cancelling again", id);
                         const cancelOrder = _await(new Promise((resolve, reject) => {
                             setTimeout(() => {
-                                self.APICancelOrder(client, id, resolve, reject);
+                                self.APICancelOrder(client, user, id, resolve, reject);
                             }, TIMEOUT);
                         }));
 
                         if (cancelOrder == "CANCELLED") {
                             check = false;
-                            logger.info(id, "has been cancelled for", orderPair);
+                            logger.info(user, id, "has been cancelled for", orderPair);
                         } else {
-                            logger.error(id, "has failed to cancel, will retry", orderPair);
+                            logger.error(user, id, "has failed to cancel, will retry", orderPair);
                         }
                     } else {
                         check = false;
-                        logger.info(id, "has already been cancelled for", orderPair);
+                        logger.info(user, id, "has already been cancelled for", orderPair);
                     }
                 }
             }
         });
     },
 
-    addOrders(client, orderPair, price, volume, type) {
+    addOrders(client, user, orderPair, price, volume, type) {
         const self = this;
         const addedOrder = _await(new Promise((resolve, reject) => {
             setTimeout(() => {
-                self.APIAddOrder(client, orderPair, type, price, price, volume, resolve, reject);
+                self.APIAddOrder(client, user, orderPair, type, price, price, volume, resolve, reject);
             }, TIMEOUT);
         }));
 
         if (addedOrder == "MAYBE") {
             let check = true;
             while (check) {
-                logger.info("Getting open orders again");
+                logger.info(user, "Getting open orders again");
                 const orders = _await(new Promise((resolve, reject) => {
                     setTimeout(() => {
-                        self.getOpenOrders(client, resolve, reject)
+                        self.getOpenOrders(client, user, resolve, reject)
                     }, TIMEOUT);
                 }));
 
                 for (let orderId in orders) {
                     if (orders.hasOwnProperty(orderId) && orders[orderId]["descr"]["pair"] == orderPair) {
                         check = false;
-                        logger.info("Already exists", orders[orderId]["descr"]["order"], orderId);
+                        logger.info(user, "Already exists", orders[orderId]["descr"]["order"], orderId);
                     }
                 }
 
                 if (check) {
                     const addedOrder = _await(new Promise((resolve, reject) => {
                         setTimeout(() => {
-                            self.APIAddOrder(client, orderPair, type, price, price, volume, resolve, reject);
+                            self.APIAddOrder(client, user, orderPair, type, price, price, volume, resolve, reject);
                         }, TIMEOUT);
                     }));
 
                     if (addedOrder == "MAYBE") {
-                        logger.error("Order may have failed to be added, will retry", orderPair);
+                        logger.error(user, "Order may have failed to be added, will retry", orderPair);
                     } else {
                         check = false;
-                        logger.info("OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
+                        logger.info(user, "OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
                     }
                 }
             }
         } else {
-            logger.info("OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
+            logger.info(user, "OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
         }
     },
 
-    getPersonalBalance(client, resolve, reject) {
+    getPersonalBalance(client, user, resolve, reject) {
         const self = this;
-        logger.info("Getting Balance");
+        logger.info(user, "Getting Balance");
         return client.api('Balance', null, (error, data) => {
             if (error) {
-                logger.error("Error while getting Balance");
-                logger.error(error.toString());
+                logger.error(user, "Error while getting Balance");
+                logger.error(user, error.toString());
                 setTimeout(() => {
-                    self.getPersonalBalance(client, resolve, reject);
+                    self.getPersonalBalance(client, user, resolve, reject);
                 }, TIMEOUT);
             }
             if (data) {
                 const results = data.result;
                 if (results) {
-                    logger.info(results);
+                    logger.info(user, results);
                     resolve(results);
                 }
             }
         });
     },
 
-    APICancelOrder(client, txId, resolve, reject) {
-        logger.info("Cancelling order", txId);
+    APICancelOrder(client, user, txId, resolve, reject) {
+        logger.info(user, "Cancelling order", txId);
         return client.api('CancelOrder', {"txid": txId}, function (error, data) {
             if (error) {
-                logger.error("Error while cancelling order", txId);
-                logger.error(error.toString());
+                logger.error(user, "Error while cancelling order", txId);
+                logger.error(user, error.toString());
                 resolve("KO");
             }
             if (data) {
-                logger.info("Order " + txId + " cancelled");
+                logger.info(user, "Order " + txId + " cancelled");
                 resolve("CANCELLED");
             }
         });
     },
 
-    APIAddOrder(client, pair, type, price1, price2, volume, resolve, reject) {
-        logger.info("Adding order");
+    APIAddOrder(client, user, pair, type, price1, price2, volume, resolve, reject) {
+        logger.info(user, "Adding order");
         return client.api('AddOrder', {
             "pair": pair,
             "type": type,
@@ -255,8 +266,8 @@ module.exports = {
             "volume": volume
         }, function (error, data) {
             if (error) {
-                logger.error("Error while adding order for", pair, type, price1, price2, volume);
-                logger.error(error.toString());
+                logger.error(user, "Error while adding order for", pair, type, price1, price2, volume);
+                logger.error(user, error.toString());
                 resolve("MAYBE");
             }
             if (data) {
@@ -265,21 +276,21 @@ module.exports = {
         });
     },
 
-    getPairData(client, pair, resolve, reject) {
+    getPairData(client, user, pair, resolve, reject) {
         const self = this;
-        logger.info("Getting pair", pair);
+        logger.info(user, "Getting pair", pair);
         return client.api('OHLC', {"pair": pair, "interval": CANDLE_PERIOD}, function (error, data) {
             if (error) {
-                logger.error("Error while getting pair data for", pair);
-                logger.error(error.toString());
+                logger.error(user, "Error while getting pair data for", pair);
+                logger.error(user, error.toString());
                 setTimeout(() => {
-                    self.getPairData(client, pair, resolve, reject);
+                    self.getPairData(client, user, pair, resolve, reject);
                 }, TIMEOUT);
             }
             if (data) {
                 const result = data.result;
                 if (result) {
-                    logger.info("Got pair data for", pair);
+                    logger.info(user, "Got pair data for", pair);
                     resolve(result);
                 }
             }
@@ -293,20 +304,20 @@ module.exports = {
      * @param reject
      * @returns data for open orders: Object with txid as keys
      */
-    getOpenOrders(client, resolve, reject) {
+    getOpenOrders(client, user, resolve, reject) {
         const self = this;
-        logger.info("Getting Open Orders");
+        logger.info(user, "Getting Open Orders");
         return client.api('OpenOrders', null, function (error, data) {
             if (error) {
-                logger.error("Error while getting open orders");
-                logger.error(error.toString());
+                logger.error(user, "Error while getting open orders");
+                logger.error(user, error.toString());
                 setTimeout(() => {
-                    self.getOpenOrders(client, resolve, reject);
+                    self.getOpenOrders(client, user, resolve, reject);
                 }, TIMEOUT);
             }
             if (data) {
-                // logger.info(data["result"]["open"]);
-                logger.info("Got open orders");
+                // logger.info(user, data["result"]["open"]);
+                logger.info(user, "Got open orders");
                 resolve(data["result"]["open"]);
             }
         });

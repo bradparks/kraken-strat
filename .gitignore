@@ -13,4 +13,4 @@ docker-compose.yml
 
 .idea/
 config/secret.js
-kraken.log
+logs/*.*

@@ -7,9 +7,16 @@ const rule = new schedule.RecurrenceRule();
 rule.hour = [2, 6, 10, 14, 18, 22];
 rule.minute = 1;
 
-// script.run(krakenRay);
+const rule2 = new schedule.RecurrenceRule();
+rule2.hour = [2, 6, 10, 14, 18, 22];
+rule2.minute = 30;
+// script.run(krakenRay, 200, "Ray");
+// script.run(krakenTom, 200, "Tom");
 
 const s = schedule.scheduleJob({ rule: rule }, function() {
-    script.run(krakenRay, 10);
-    script.run(krakenTom, 200);
+    script.run(krakenRay, 200, "Ray");
+});
+
+const s2 = schedule.scheduleJob({ rule: rule2 }, function() {
+    script.run(krakenTom, 200, "Tom");
 });
