@@ -15,7 +15,6 @@ const logger = log4js.getLogger('kraken');
 
 const CANDLE_PERIOD = 240;
 const PERIOD_BUY_SELL = 6; //Last 6 candles not the last one included
-const INITIAL_CAPITAL = 10;
 const MARGIN = 0.005;
 
 const TIMEOUT = 45000;
@@ -26,7 +25,7 @@ const USED_CURRENCY = ["XXBT", "XLTC", "XREP", "XZEC", "DASH", "GNO", "XETC", "E
 const NO_X_CURRENCY = ["DASH", "GNO", "EOS"];
 
 module.exports = {
-    run(kraken) {
+    run(kraken, INITIAL_CAPITAL) {
         const self = this;
         const asyncFunc = _async(() => {
             const balance = _await(new Promise((resolve, reject) => {
