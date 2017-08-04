@@ -62,20 +62,19 @@ module.exports = {
 
                             const redOrGreen = lastCandle.get("open") > lastCandle.get("close") ? "RED" : "GREEN";
 
-                            if (balance.hasOwnProperty(currencyId) && balance[currencyId].substring(0, 2) == "0." || !balance.hasOwnProperty(currencyId)) {
+                            if (balance.hasOwnProperty(currencyId) && balance[currencyId] == "0.0000000000" || !balance.hasOwnProperty(currencyId)) {
                                 if (redOrGreen == "RED") {
                                     logger.info("Dernière bougie rouge et je ne suis pas en position, je descend le SL BUY");
                                     if (openOrderIdsForPair.length) {
                                         // Delete old orders SL BUY
-                                        logger.info("Orders to be cancelled", openOrderIdsForPair);
-                                        self.cancelOrders(openOrderIdsForPair, orderPair);
+                                        self.cancelOrders(kraken, openOrderIdsForPair, orderPair);
                                     }
 
                                     const price = highest * (1 + MARGIN);
                                     const volume = (INITIAL_CAPITAL / price).toString();
 
                                     // New order SL BUY
-                                    self.addOrders(orderPair, price, volume, "buy");
+                                    self.addOrders(kraken, orderPair, price, volume, "buy");
                                 }
                                 else {
                                     logger.info("Pas en position sur " + pair + " et bougie verte, I'm out");
@@ -83,20 +82,19 @@ module.exports = {
                             }
                             else {
                                 const volume = balance[currencyId];
-                                logger.info("En position sur" + pair + " avec un volume de " + volume);
+                                logger.info("En position sur " + pair + " avec un volume de " + volume);
 
                                 if (redOrGreen == "GREEN") {
                                     logger.info("Dernière bougie verte et je suis en position, je monte le SL SELL");
                                     if (openOrderIdsForPair.length) {
-                                        // Delete old order SL BUY
-                                        logger.info("Orders to be cancelled", openOrderIdsForPair);
-                                        self.cancelOrders(openOrderIdsForPair, self, orderPair);
+                                        // Delete old order SL SELL
+                                        self.cancelOrders(kraken, openOrderIdsForPair, orderPair);
                                     }
 
                                     const price = lowest * (1 - MARGIN);
 
                                     // New order SL SELL
-                                    self.addOrders(orderPair, price, volume, "sell");
+                                    self.addOrders(kraken, orderPair, price, volume, "sell");
                                 }
                                 else {
                                     logger.info("En position sur " + pair + " et bougie rouge, I'm out");
@@ -119,12 +117,14 @@ module.exports = {
             })
     },
 
-    cancelOrders(openOrderIdsForPair, orderPair) {
+    cancelOrders(client, openOrderIdsForPair, orderPair) {
         const self = this;
+        logger.info("Orders to be cancelled", openOrderIdsForPair);
+
         openOrderIdsForPair.forEach(id => {
             const cancelledOrder = _await(new Promise((resolve, reject) => {
                 setTimeout(() => {
-                    self.APICancelOrder(kraken, id, resolve, reject);
+                    self.APICancelOrder(client, id, resolve, reject);
                 }, TIMEOUT);
             }));
 
@@ -137,7 +137,7 @@ module.exports = {
                     logger.info("Getting open orders again");
                     const orders = _await(new Promise((resolve, reject) => {
                         setTimeout(() => {
-                            self.getOpenOrders(kraken, resolve, reject)
+                            self.getOpenOrders(client, resolve, reject)
                         }, TIMEOUT);
                     }));
 
@@ -145,7 +145,7 @@ module.exports = {
                         logger.info("Retry cancelling again", id);
                         const cancelOrder = _await(new Promise((resolve, reject) => {
                             setTimeout(() => {
-                                self.APICancelOrder(kraken, id, resolve, reject);
+                                self.APICancelOrder(client, id, resolve, reject);
                             }, TIMEOUT);
                         }));
 
@@ -162,11 +162,11 @@ module.exports = {
         });
     },
 
-    addOrders(orderPair, price, volume, type) {
+    addOrders(client, orderPair, price, volume, type) {
         const self = this;
         const addedOrder = _await(new Promise((resolve, reject) => {
             setTimeout(() => {
-                self.APIAddOrder(kraken, orderPair, type, price, price, volume, resolve, reject);
+                self.APIAddOrder(client, orderPair, type, price, price, volume, resolve, reject);
             }, TIMEOUT);
         }));
 
@@ -176,7 +176,7 @@ module.exports = {
                 logger.info("Getting open orders again");
                 const orders = _await(new Promise((resolve, reject) => {
                     setTimeout(() => {
-                        self.getOpenOrders(kraken, resolve, reject)
+                        self.getOpenOrders(client, resolve, reject)
                     }, TIMEOUT);
                 }));
 
@@ -190,7 +190,7 @@ module.exports = {
                 if (check) {
                     const addedOrder = _await(new Promise((resolve, reject) => {
                         setTimeout(() => {
-                            self.APIAddOrder(kraken, orderPair, type, price, price, volume, resolve, reject);
+                            self.APIAddOrder(client, orderPair, type, price, price, volume, resolve, reject);
                         }, TIMEOUT);
                     }));
 
