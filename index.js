@@ -11,5 +11,5 @@ rule.minute = 1;
 
 const s = schedule.scheduleJob({ rule: rule }, function() {
     script.run(krakenRay);
-    // script.run(krakenTom);
+    script.run(krakenTom);
 });

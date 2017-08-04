@@ -152,6 +152,8 @@ module.exports = {
                         if (cancelOrder == "CANCELLED") {
                             check = false;
                             logger.info(id, "has been cancelled for", orderPair);
+                        } else {
+                            logger.error(id, "has failed to cancel, will retry", orderPair);
                         }
                     } else {
                         check = false;
@@ -194,7 +196,9 @@ module.exports = {
                         }, TIMEOUT);
                     }));
 
-                    if (addedOrder !== "MAYBE") {
+                    if (addedOrder == "MAYBE") {
+                        logger.error("Order may have failed to be added, will retry", orderPair);
+                    } else {
                         check = false;
                         logger.info("OK", addedOrder["descr"]["order"], addedOrder["txid"][0]);
                     }
